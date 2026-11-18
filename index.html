@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Qui a tué le Serveur ? – Enquête API REST</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Special+Elite&family=Poppins:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0c0a18; --bg2:#15112b; --card:#1d1838; --line:#2e2754;
+  --tape:#ffd400; --red:#ff3b5c; --green:#2ee6a0; --cyan:#22d3ee;
+  --orange:#ff8a3d; --purple:#a78bfa; --pink:#ff6ec7; --yellow:#ffe14d;
+  --text:#f3f0ff; --muted:#a59fc9;
+  --title:'Bangers', 'Impact', sans-serif;
+  --type:'Special Elite', 'Courier New', monospace;
+  --ui:'Poppins', system-ui, sans-serif;
+  --mono:'JetBrains Mono', Consolas, monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--ui); color:var(--text); background:var(--bg);
+  background-image:
+    radial-gradient(circle at 15% 10%, rgba(255,59,92,.18), transparent 40%),
+    radial-gradient(circle at 85% 90%, rgba(34,211,238,.15), transparent 45%),
+    radial-gradient(circle at 50% 50%, rgba(167,139,250,.08), transparent 60%);
+  min-height:100vh; overflow-x:hidden;
+}
+/* rain / noise */
+body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,.015) 0 2px, transparent 2px 4px);}
+.screen{display:none;position:relative;z-index:1;min-height:100vh;padding:28px 4vw 60px;animation:fade .6s ease}
+.screen.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+
+/* crime tape */
+.tape{position:absolute;left:-5%;width:110%;height:46px;background:var(--tape);color:#111;
+  font-family:var(--title);font-size:26px;letter-spacing:3px;display:flex;align-items:center;
+  white-space:nowrap;overflow:hidden;box-shadow:0 6px 20px rgba(0,0,0,.5);z-index:2}
+.tape span{animation:scroll 18s linear infinite;display:inline-block}
+.tape.t1{top:40px;transform:rotate(-4deg)}
+.tape.t2{bottom:60px;transform:rotate(3deg)}
+.tape.t2 span{animation-direction:reverse}
+@keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+
+/* INTRO */
+#intro{display:none;align-items:center;justify-content:center;flex-direction:column;text-align:center;overflow:hidden}
+#intro.active{display:flex}
+.intro-box{position:relative;z-index:3;max-width:820px;margin-top:70px}
+.kicker{font-family:var(--type);color:var(--tape);letter-spacing:4px;font-size:15px;text-transform:uppercase}
+h1.big{font-family:var(--title);font-size:clamp(56px,10vw,120px);line-height:.9;letter-spacing:3px;margin:10px 0 6px;
+  color:var(--text);text-shadow:4px 4px 0 var(--red), 8px 8px 0 rgba(0,0,0,.6)}
+h1.big em{font-style:normal;color:var(--tape)}
+.sub{color:var(--muted);font-size:17px;margin-bottom:26px}
+.body-outline{width:260px;height:150px;margin:10px auto 18px;position:relative}
+.story{font-family:var(--type);font-size:18px;line-height:1.65;background:rgba(0,0,0,.35);border:1px dashed var(--line);
+  padding:22px 26px;border-radius:14px;text-align:left;min-height:190px;white-space:pre-line}
+.story .cursor{display:inline-block;width:9px;background:var(--tape);animation:blink 1s infinite;margin-left:2px}
+@keyframes blink{50%{opacity:0}}
+.btn{font-family:var(--title);font-size:24px;letter-spacing:2px;border:none;cursor:pointer;padding:14px 34px;border-radius:14px;
+  background:var(--red);color:#fff;box-shadow:0 6px 0 #a3162f, 0 10px 30px rgba(255,59,92,.35);transition:.15s;margin-top:22px}
+.btn:hover{transform:translateY(-2px)}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 #a3162f}
+.btn.ghost{background:transparent;border:2px solid var(--muted);color:var(--text);box-shadow:none;font-size:18px;padding:10px 22px}
+.btn.yellow{background:var(--tape);color:#111;box-shadow:0 6px 0 #b39500, 0 10px 30px rgba(255,212,0,.3)}
+.btn:disabled{opacity:.35;cursor:not-allowed;transform:none}
+.skip{position:absolute;bottom:20px;right:24px;z-index:5;font-size:14px;color:var(--muted);background:none;border:none;cursor:pointer;text-decoration:underline}
+
+/* HEADER */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.logo{font-family:var(--title);font-size:34px;letter-spacing:2px}
+.logo b{color:var(--red)} .logo i{color:var(--tape);font-style:normal}
+.stats{display:flex;gap:10px;flex-wrap:wrap}
+.pill{background:var(--card);border:1px solid var(--line);padding:8px 14px;border-radius:999px;font-size:14px;display:flex;gap:8px;align-items:center}
+.pill strong{color:var(--tape)}
+.timer{font-family:var(--mono)}
+
+.layout{display:grid;grid-template-columns:1fr 340px;gap:24px}
+@media (max-width:1000px){.layout{grid-template-columns:1fr}}
+.section-title{font-family:var(--title);font-size:30px;letter-spacing:1.5px;margin:4px 0 14px;display:flex;align-items:center;gap:10px}
+.section-title small{font-family:var(--ui);font-size:13px;color:var(--muted);letter-spacing:0}
+
+/* SUSPECT CARDS */
+.suspects{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:18px}
+.scard{position:relative;background:var(--card);border-radius:18px;padding:16px 14px 18px;cursor:pointer;border:2px solid transparent;
+  transition:.2s;text-align:center;overflow:hidden}
+.scard::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 0%, var(--c), transparent 70%);opacity:.22;transition:.2s}
+.scard:hover{transform:translateY(-6px) rotate(-1deg);border-color:var(--c);box-shadow:0 14px 40px -10px var(--c)}
+.scard:hover::before{opacity:.4}
+.scard .av{width:130px;height:130px;margin:0 auto 6px;position:relative;filter:drop-shadow(0 8px 14px rgba(0,0,0,.5))}
+.scard .av svg{width:100%;height:100%}
+.scard h3{font-family:var(--title);font-size:28px;letter-spacing:1.5px;color:var(--c);position:relative}
+.scard .nick{font-family:var(--type);font-size:14px;color:var(--muted);position:relative}
+.scard .prog{position:relative;margin-top:10px;display:flex;justify-content:center;gap:5px}
+.scard .prog i{width:22px;height:6px;border-radius:4px;background:var(--line)}
+.scard .prog i.on{background:var(--c)}
+.scard .num{position:absolute;top:10px;left:12px;font-family:var(--type);font-size:12px;color:var(--muted);z-index:1}
+.bob{animation:bob 3s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+
+/* ENVELOPES */
+.envelopes{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:30px}
+@media (max-width:700px){.envelopes{grid-template-columns:1fr}}
+.env{background:linear-gradient(160deg,#e9d8a6,#c9b27a);color:#3b2f12;border-radius:10px;padding:18px;min-height:130px;position:relative;cursor:pointer;
+  box-shadow:0 10px 30px rgba(0,0,0,.5);transition:.2s;font-family:var(--type)}
+.env::after{content:"";position:absolute;top:0;left:0;right:0;height:56px;background:linear-gradient(160deg,#dcc68d,#b89c5d);
+  clip-path:polygon(0 0,100% 0,50% 100%);border-radius:10px 10px 0 0}
+.env:hover:not(.locked){transform:translateY(-4px) rotate(1deg)}
+.env .seal{position:absolute;top:34px;left:50%;transform:translateX(-50%);width:40px;height:40px;border-radius:50%;background:var(--red);z-index:2;
+  display:flex;align-items:center;justify-content:center;color:#fff;font-family:var(--title);font-size:20px;box-shadow:0 3px 8px rgba(0,0,0,.4)}
+.env .label{position:relative;z-index:1;margin-top:66px;font-size:17px;font-weight:bold;text-align:center}
+.env .hint{text-align:center;font-size:12px;margin-top:4px;opacity:.8}
+.env.locked{filter:grayscale(1) brightness(.45);cursor:not-allowed}
+.env.done .seal{background:var(--green)}
+
+/* NOTEBOOK */
+.notebook{background:#fdf6e3;color:#2b2b2b;border-radius:6px 16px 16px 6px;padding:20px 20px 20px 40px;position:sticky;top:20px;
+  box-shadow:0 20px 50px rgba(0,0,0,.5);font-family:var(--type);max-height:calc(100vh - 40px);overflow:auto;
+  background-image:repeating-linear-gradient(#fdf6e3 0 27px,#cfe3f5 27px 28px);border-left:6px solid var(--red)}
+.notebook h3{font-family:var(--title);font-size:28px;letter-spacing:1px;color:#c21d3c;margin-bottom:4px}
+.notebook .empty{color:#8a8a8a;font-size:14px;line-height:28px}
+.note{line-height:28px;font-size:14.5px;padding-left:4px;animation:pop .4s ease}
+.note .tag{font-family:var(--ui);font-size:10px;font-weight:800;padding:2px 6px;border-radius:5px;margin-right:6px;vertical-align:2px;color:#fff}
+.tag.lim{background:var(--red)} .tag.av{background:#16a374} .tag.fact{background:#5b5b8a}
+@keyframes pop{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+.accuse-wrap{margin-top:30px;text-align:center}
+
+/* MODAL */
+.modal{position:fixed;inset:0;background:rgba(5,3,14,.82);backdrop-filter:blur(6px);z-index:50;display:none;align-items:center;justify-content:center;padding:20px}
+.modal.open{display:flex}
+.mbox{background:var(--bg2);border:2px solid var(--c, var(--line));border-radius:22px;max-width:920px;width:100%;max-height:92vh;overflow:auto;
+  position:relative;animation:zoom .3s ease;box-shadow:0 30px 80px -20px var(--c, #000)}
+@keyframes zoom{from{transform:scale(.9);opacity:0}to{transform:none;opacity:1}}
+.close{position:absolute;top:12px;right:14px;background:none;border:none;color:var(--muted);font-size:28px;cursor:pointer;z-index:3}
+.interro{display:grid;grid-template-columns:260px 1fr;gap:0}
+@media (max-width:760px){.interro{grid-template-columns:1fr}}
+.interro .left{padding:26px;text-align:center;background:radial-gradient(circle at 50% 30%, var(--c), transparent 70%);background-color:rgba(0,0,0,.25);border-radius:20px 0 0 20px}
+.interro .left .av{width:200px;height:200px;margin:0 auto}
+.interro .left h2{font-family:var(--title);font-size:40px;letter-spacing:2px;color:var(--c);text-shadow:2px 2px 0 #000}
+.interro .left .nick{font-family:var(--type);color:var(--text)}
+.interro .left .role{font-size:13px;color:var(--muted);margin-top:8px}
+.interro .left .trait{display:inline-block;margin-top:10px;font-size:12px;background:rgba(0,0,0,.4);padding:5px 10px;border-radius:999px}
+.interro .right{padding:28px 28px 24px}
+.bubble{background:#fff;color:#1a1a1a;border-radius:18px;padding:18px 20px;font-size:17px;line-height:1.55;position:relative;min-height:90px;font-weight:600}
+.bubble::before{content:"";position:absolute;left:-12px;top:26px;border:12px solid transparent;border-right-color:#fff;border-left:0}
+@media (max-width:760px){.bubble::before{display:none}}
+.questions{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+.qbtn{text-align:left;background:var(--card);border:1px solid var(--line);color:var(--text);padding:13px 16px;border-radius:12px;cursor:pointer;
+  font-family:var(--ui);font-size:15px;transition:.15s;display:flex;gap:10px;align-items:center}
+.qbtn:hover{border-color:var(--c);background:#262046}
+.qbtn.asked{opacity:.55}
+.qbtn.asked::after{content:"✓";margin-left:auto;color:var(--green)}
+.qbtn .ic{font-size:18px}
+.newclue{margin-top:16px;background:rgba(255,212,0,.1);border:1px dashed var(--tape);color:var(--tape);padding:10px 14px;border-radius:10px;font-size:14px;display:none;animation:pop .4s}
+.newclue.show{display:block}
+
+/* ENVELOPE CONTENT */
+.econtent{padding:30px}
+.econtent h2{font-family:var(--title);font-size:38px;letter-spacing:2px;color:var(--tape);margin-bottom:6px}
+.econtent p.lead{color:var(--muted);margin-bottom:16px}
+.terminal{background:#05030c;border:1px solid #2a2250;border-radius:12px;padding:16px 18px;font-family:var(--mono);font-size:13px;line-height:1.7;
+  color:#9ef7c8;overflow:auto;min-height:260px}
+.terminal .bar{display:flex;gap:6px;margin-bottom:10px}
+.terminal .bar i{width:11px;height:11px;border-radius:50%;background:#ff5f57}
+.terminal .bar i:nth-child(2){background:#febc2e}.terminal .bar i:nth-child(3){background:#28c840}
+.terminal .l-warn{color:var(--yellow)} .terminal .l-err{color:var(--red);font-weight:700} .terminal .l-info{color:var(--cyan)} .terminal .l-dim{color:#5d5a80}
+.cpu{margin-top:14px;display:flex;align-items:center;gap:12px;font-family:var(--mono);font-size:13px}
+.cpu .meter{flex:1;height:14px;background:#211b3f;border-radius:8px;overflow:hidden}
+.cpu .meter div{height:100%;width:0;background:linear-gradient(90deg,var(--green),var(--yellow),var(--red));transition:width .4s}
+.puzzle{margin-top:22px;background:var(--card);border-radius:14px;padding:18px;border:1px solid var(--line)}
+.puzzle h4{font-size:17px;margin-bottom:12px}
+.choices{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.choice{background:var(--bg2);border:2px solid var(--line);color:var(--text);padding:12px;border-radius:10px;cursor:pointer;font-family:var(--ui);font-size:15px;font-weight:600;transition:.15s}
+.choice:hover{border-color:var(--tape)}
+.choice.good{border-color:var(--green);background:rgba(46,230,160,.15)}
+.choice.bad{border-color:var(--red);background:rgba(255,59,92,.15);animation:shake .4s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.feedback{margin-top:12px;font-size:15px;min-height:22px}
+.evid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.evid{grid-template-columns:1fr}}
+.evid .piece{background:var(--card);border-radius:14px;padding:16px;border:1px solid var(--line);position:relative}
+.evid .piece .ptag{position:absolute;top:-10px;left:14px;background:var(--tape);color:#111;font-family:var(--title);letter-spacing:1px;padding:2px 10px;border-radius:6px}
+.evid pre{font-family:var(--mono);font-size:12.5px;line-height:1.55;background:#05030c;border-radius:8px;padding:12px;overflow:auto;margin-top:8px;color:#d6d3f0}
+.evid pre .k{color:var(--pink)} .evid pre .s{color:var(--green)} .evid pre .c{color:#6f6a99;font-style:italic} .evid pre .n{color:var(--orange)} .evid pre .hl{background:rgba(255,212,0,.25);color:var(--tape)}
+.evid .full{grid-column:1/-1}
+.bars .row{display:flex;align-items:center;gap:10px;margin:10px 0;font-size:13px;font-family:var(--mono)}
+.bars .row span:first-child{width:210px}
+.bars .track{flex:1;height:18px;background:#211b3f;border-radius:6px;overflow:hidden}
+.bars .fill{height:100%;background:var(--green);width:0;transition:width 1.2s ease;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;font-size:11px;color:#06281b;font-weight:700}
+.testis{display:grid;gap:14px}
+.testi{display:flex;gap:14px;align-items:flex-start;background:var(--card);border-radius:14px;padding:14px 16px;border-left:5px solid var(--c)}
+.testi .face{font-size:36px;line-height:1}
+.testi b{display:block;color:var(--c);font-size:14px;margin-bottom:3px}
+.testi p{font-family:var(--type);font-size:15.5px;line-height:1.5}
+
+/* ACCUSATION */
+.acc-step{background:var(--card);border-radius:18px;padding:22px;margin-bottom:18px;border:1px solid var(--line)}
+.acc-step h3{font-family:var(--title);font-size:26px;letter-spacing:1.5px;margin-bottom:12px}
+.acc-step h3 span{color:var(--tape)}
+.pick{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:12px}
+.pick .opt{background:var(--bg2);border:3px solid var(--line);border-radius:14px;padding:10px;cursor:pointer;text-align:center;transition:.15s}
+.pick .opt:hover{border-color:var(--c)}
+.pick .opt.sel{border-color:var(--c);box-shadow:0 0 0 4px rgba(255,255,255,.08), 0 0 24px -4px var(--c);transform:scale(1.04)}
+.pick .opt .av{width:80px;height:80px;margin:0 auto}
+.pick .opt b{font-family:var(--title);letter-spacing:1px;font-size:18px;color:var(--c)}
+.list-opts{display:grid;gap:10px}
+.list-opts .opt{background:var(--bg2);border:2px solid var(--line);border-radius:12px;padding:12px 16px;cursor:pointer;transition:.15s;font-size:15px}
+.list-opts .opt:hover{border-color:var(--tape)}
+.list-opts .opt.sel{border-color:var(--tape);background:rgba(255,212,0,.1)}
+.list-opts code,.mono{font-family:var(--mono);font-size:13.5px;color:var(--cyan)}
+
+/* REVEAL */
+#reveal{text-align:center}
+.drum{font-family:var(--title);font-size:clamp(40px,7vw,80px);letter-spacing:3px;margin-top:8vh}
+.drum .dots span{animation:blink 1s infinite}
+.drum .dots span:nth-child(2){animation-delay:.2s}.drum .dots span:nth-child(3){animation-delay:.4s}
+.verdicts{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-top:26px;text-align:left}
+.vcard{background:var(--card);border-radius:18px;padding:54px 18px 18px;position:relative;overflow:hidden;border:2px solid var(--c);opacity:0;transform:translateY(30px) scale(.95);transition:.6s cubic-bezier(.2,1.4,.4,1)}
+.vcard.in{opacity:1;transform:none}
+.vcard .top{display:flex;gap:12px;align-items:center}
+.vcard .av{width:76px;height:76px;flex:none}
+.vcard h4{font-family:var(--title);font-size:26px;letter-spacing:1px;color:var(--c)}
+.vcard p{font-size:14px;color:#d8d4f5;margin-top:10px;line-height:1.5}
+.vcard .lesson{margin-top:10px;font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;display:inline-block}
+.lesson.l-lim{background:rgba(255,59,92,.18);color:#ff8aa0}.lesson.l-av{background:rgba(46,230,160,.15);color:var(--green)}.lesson.l-alt{background:rgba(34,211,238,.15);color:var(--cyan)}
+.stamp{position:absolute;top:12px;right:14px;transform:rotate(12deg);font-family:var(--title);font-size:22px;letter-spacing:2px;padding:4px 12px;border:3px solid;border-radius:6px;opacity:0}
+.vcard.in .stamp{animation:stamp .5s .5s forwards}
+@keyframes stamp{0%{opacity:0;transform:rotate(12deg) scale(2.4)}100%{opacity:.92;transform:rotate(12deg) scale(1)}}
+.stamp.guilty{color:var(--red);border-color:var(--red)} .stamp.acc{color:var(--orange);border-color:var(--orange)}
+.stamp.inno{color:var(--green);border-color:var(--green)} .stamp.hero{color:var(--cyan);border-color:var(--cyan)}
+.scorebox{margin:30px auto 0;max-width:700px;background:linear-gradient(135deg,#2a1f55,#1a1436);border:2px solid var(--tape);border-radius:20px;padding:24px}
+.scorebox .sc{font-family:var(--title);font-size:72px;color:var(--tape);line-height:1}
+.scorebox .rank{font-family:var(--type);font-size:20px;margin-top:4px}
+.scorebox ul{list-style:none;margin-top:14px;text-align:left;display:grid;gap:6px;font-size:14.5px}
+.final-text{max-width:820px;margin:34px auto 0;font-family:var(--type);font-size:18px;line-height:1.7;background:rgba(0,0,0,.35);border:1px dashed var(--line);border-radius:16px;padding:24px;text-align:left}
+.final-text b{color:var(--tape)}
+.debrief{max-width:1100px;margin:40px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:20px;text-align:left}
+@media (max-width:850px){.debrief{grid-template-columns:1fr}}
+.dcol{background:var(--card);border-radius:18px;padding:20px;border-top:6px solid var(--c)}
+.dcol h3{font-family:var(--title);font-size:30px;letter-spacing:1.5px;color:var(--c);margin-bottom:10px}
+.ditem{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line)}
+.ditem:last-child{border:none}
+.ditem .e{font-size:24px}
+.ditem b{display:block;font-size:15px}
+.ditem span{font-size:13.5px;color:var(--muted)}
+.alts{max-width:1100px;margin:20px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:16px;text-align:left}
+@media (max-width:850px){.alts{grid-template-columns:1fr}}
+.alt{background:var(--card);border-radius:16px;padding:16px;border:1px solid var(--line)}
+.alt b{color:var(--cyan);font-family:var(--title);font-size:22px;letter-spacing:1px}
+.alt p{font-size:13.5px;color:var(--muted);margin-top:4px}
+.key{max-width:820px;margin:28px auto 0;font-size:19px;font-weight:800;background:var(--tape);color:#111;padding:18px 22px;border-radius:14px;transform:rotate(-1deg)}
+
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(120px);background:var(--tape);color:#111;font-weight:800;
+  padding:12px 20px;border-radius:12px;z-index:80;transition:.35s;box-shadow:0 10px 30px rgba(0,0,0,.5);max-width:90vw}
+.toast.show{transform:translateX(-50%) translateY(0)}
+#confetti{position:fixed;inset:0;pointer-events:none;z-index:90}
+.sound{background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:7px 12px;cursor:pointer;font-size:14px}
+
+/* ====== MODE PLEIN ÉCRAN / DATA SHOW ====== */
+.screen{height:100vh;overflow-y:auto;padding:2.4vh 2.4vw 2vh;min-height:0}
+#board.active,#accuse.active,#reveal.active{display:flex;flex-direction:column}
+.topbar{margin-bottom:1.6vh}
+.logo{font-size:clamp(22px,4.2vh,36px)}
+.pill{padding:.7vh 14px;font-size:clamp(12px,1.7vh,15px)}
+/* intro */
+.tape{height:clamp(32px,5vh,46px);font-size:clamp(18px,3vh,26px)}
+.tape.t1{top:1vh}.tape.t2{bottom:1vh}
+#intro{padding-top:7vh;padding-bottom:7vh;overflow:hidden}
+.intro-box{margin-top:0}
+h1.big{font-size:clamp(40px,10vh,124px);margin:.6vh 0 .4vh}
+.sub{margin-bottom:1vh;font-size:clamp(14px,2.1vh,18px)}
+.body-outline{width:min(260px,21vh);height:auto;margin:0 auto .6vh}
+.body-outline svg{width:100%}
+.story{font-size:clamp(12px,2vh,19px);min-height:0;padding:1.6vh 26px;line-height:1.6}
+.intro-actions{display:flex;gap:14px;justify-content:center;align-items:center;margin-top:1.8vh;flex-wrap:wrap}
+.intro-actions .btn{font-size:clamp(16px,2.8vh,24px);padding:1.3vh 26px}
+.intro-actions .btn.ghost{font-size:clamp(13px,2.1vh,18px);padding:1vh 16px}
+.intro-box{max-width:min(900px,92vw)}
+.intro-actions .btn{margin:0}
+/* board */
+#board .layout{flex:1;min-height:0;grid-template-columns:1fr minmax(260px,24vw);gap:1.6vw}
+.leftcol{display:flex;flex-direction:column;min-height:0;gap:1.2vh}
+.section-title{font-size:clamp(20px,3.3vh,30px);margin:0}
+#board .suspects{flex:1;min-height:0;grid-template-columns:repeat(3,1fr);grid-auto-rows:1fr;gap:1.4vh 1.2vw}
+.scard{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:1vh .8vw}
+.scard .av{width:min(14vh,140px);height:min(14vh,140px);margin:0 auto .4vh}
+.scard h3{font-size:clamp(18px,3.4vh,30px);line-height:1}
+.scard .nick{font-size:clamp(11px,1.7vh,15px)}
+.scard .prog{margin-top:.8vh}
+.env-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.btn.small{font-size:clamp(16px,2.7vh,24px);padding:1vh 24px;margin:0}
+#board .envelopes{margin-top:0;gap:1.2vw}
+.env{min-height:0;height:15vh;padding:1vh}
+.env::after{height:5vh}
+.env .seal{top:2.4vh;width:4.6vh;height:4.6vh;font-size:2.3vh}
+.env .label{margin-top:7.6vh;font-size:clamp(12px,1.95vh,18px)}
+.env .hint{font-size:clamp(10px,1.45vh,13px)}
+#board .notebook{position:relative;top:0;max-height:none;height:100%;min-height:0}
+.notebook h3{font-size:clamp(20px,3.4vh,30px)}
+.note{font-size:clamp(12px,1.75vh,15px)}
+/* modales plus grandes pour le projecteur */
+.mbox{max-width:min(1250px,94vw);max-height:94vh}
+.bubble{font-size:clamp(15px,2.5vh,22px)}
+.qbtn{font-size:clamp(14px,2.1vh,18px);padding:1.4vh 16px}
+.interro{grid-template-columns:minmax(240px,28%) 1fr}
+.interro .left .av{width:min(26vh,230px);height:min(26vh,230px)}
+.interro .left h2{font-size:clamp(30px,5.5vh,48px)}
+.replay{margin-top:10px;background:none;border:1px solid var(--line);color:var(--muted);border-radius:999px;padding:6px 14px;cursor:pointer;font-family:var(--ui);font-size:13px}
+.replay:hover{color:var(--text);border-color:var(--c)}
+.econtent{padding:3.4vh 2.4vw}
+.econtent h2{font-size:clamp(28px,5vh,46px)}
+.terminal{font-size:clamp(12px,1.85vh,16px);min-height:0}
+.evid pre{font-size:clamp(11px,1.7vh,15px)}
+.testi p{font-size:clamp(14px,2.2vh,19px)}
+.puzzle h4{font-size:clamp(15px,2.3vh,20px)}
+.choice{font-size:clamp(14px,2.2vh,19px);padding:1.4vh 12px}
+/* accusation en étapes */
+.stepdots{display:flex;gap:8px}
+.stepdots i{width:34px;height:9px;border-radius:5px;background:var(--line);transition:.3s}
+.stepdots i.done{background:var(--green)} .stepdots i.on{background:var(--tape);transform:scaleY(1.4)}
+.wizard{flex:1;display:flex;align-items:center;justify-content:center;min-height:0}
+.acc-step{display:none;width:min(1200px,100%);margin:0;padding:3.5vh 2.6vw}
+.acc-step.cur{display:block;animation:fade .45s}
+.acc-step h3{font-size:clamp(26px,5.4vh,50px);text-align:center;margin-bottom:3.4vh}
+.acc-step h3 small{display:block;font-family:var(--ui);font-size:clamp(13px,2vh,17px);color:var(--muted);letter-spacing:0;margin-top:.6vh}
+.pick{grid-template-columns:repeat(6,1fr)}
+.pick .opt{padding:1.6vh 8px}
+.pick .opt .av{width:min(15vh,130px);height:min(15vh,130px)}
+.pick .opt b{font-size:clamp(14px,2.5vh,22px)}
+.list-opts .opt{font-size:clamp(15px,2.6vh,22px);padding:2vh 24px}
+.list-opts code{font-size:.9em}
+.wiz-nav{display:flex;justify-content:center;gap:16px;padding-top:1.6vh}
+.wiz-nav .btn{margin:0}
+@media (max-width:900px){.pick{grid-template-columns:repeat(3,1fr)}}
+/* révélation en diapositives */
+.rv-stage{display:none;flex:1;min-height:0;flex-direction:column;justify-content:center}
+.rv-stage.cur{display:flex;animation:fade .5s}
+.drum{margin-top:0;font-size:clamp(34px,7.5vh,84px)}
+.verdicts{grid-template-columns:repeat(3,1fr);gap:2vh 1.4vw;margin-top:2.6vh}
+.vcard{padding:5.6vh 1.2vw 1.8vh}
+.vcard .av{width:9.5vh;height:9.5vh}
+.vcard h4{font-size:clamp(18px,3.4vh,30px)}
+.vcard p{font-size:clamp(12px,1.95vh,17px);margin-top:1vh}
+.vcard .lesson{font-size:clamp(11px,1.7vh,15px)}
+.stamp{font-size:clamp(14px,2.6vh,24px)}
+.scorebox{margin:0 auto;max-width:820px;width:100%;padding:3.4vh 2.4vw}
+.scorebox .sc{font-size:clamp(60px,15vh,140px)}
+.scorebox .rank{font-size:clamp(18px,3.6vh,32px)}
+.scorebox ul{font-size:clamp(13px,2.25vh,19px);gap:.8vh}
+.final-text{margin:2.4vh auto 0;font-size:clamp(15px,2.85vh,26px);max-width:1150px}
+.debrief{margin:2vh auto 0;width:100%;max-width:1300px}
+.dcol{padding:1.6vh 1.4vw} .dcol h3{font-size:clamp(20px,3.6vh,32px);margin-bottom:.6vh}
+.ditem{padding:.85vh 0}.ditem .e{font-size:clamp(18px,3vh,26px)} .ditem b{font-size:clamp(13px,2.15vh,19px)} .ditem span{font-size:clamp(11px,1.8vh,16px)}
+.alts{margin:3vh auto 0;width:100%;max-width:1300px} .alt{padding:2.6vh 1.6vw} .alt b{font-size:clamp(22px,3.8vh,34px)} .alt p{font-size:clamp(13px,2.3vh,20px)}
+.key{font-size:clamp(16px,3.1vh,28px);margin-top:4vh;max-width:1100px}
+.section-title.center{justify-content:center;font-size:clamp(30px,6.4vh,56px)}
+.rv-nav{display:flex;align-items:center;justify-content:center;gap:16px;padding-top:1.4vh;visibility:hidden}
+.rv-nav .btn{margin:0}
+.rv-nav span{font-family:var(--mono);color:var(--muted)}
+#replayBtn{margin-top:4vh;align-self:center}
+/* contrôles flottants */
+.fctl{position:fixed;right:14px;bottom:12px;z-index:70;display:flex;gap:8px}
+.fctl button{background:rgba(21,17,43,.9);border:1px solid var(--line);color:var(--text);border-radius:999px;padding:7px 13px;font-family:var(--ui);font-size:13px;cursor:pointer;backdrop-filter:blur(4px);transition:.15s}
+.fctl button:hover{border-color:var(--tape)}
+.fctl button.on{border-color:var(--tape);color:var(--tape);box-shadow:0 0 14px -4px var(--tape)}
+.speaking{animation:pulse 1s infinite}
+@keyframes pulse{50%{box-shadow:0 0 22px -2px var(--tape)}}
+@media (max-width:1000px){
+  .screen{height:auto;min-height:100vh}
+  #board .layout{grid-template-columns:1fr}
+  #board .suspects{grid-template-columns:repeat(2,1fr)}
+  .verdicts{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+<canvas id="confetti"></canvas>
+
+<!-- ===================== INTRO ===================== -->
+<section id="intro" class="screen active">
+  <div class="tape t1"><span id="tape1"></span></div>
+  <div class="tape t2"><span id="tape2"></span></div>
+  <div class="intro-box">
+    <div class="kicker">Dossier n° 503 · Affaire FoodNow</div>
+    <h1 class="big">Qui a tué<br>le <em>Serveur</em> ?</h1>
+    <p class="sub">Une enquête interactive sur les avantages et les limites des API REST</p>
+    <div class="body-outline">
+      <svg viewBox="0 0 260 150">
+        <ellipse cx="130" cy="138" rx="120" ry="10" fill="rgba(0,0,0,.5)"/>
+        <g stroke="#fff" stroke-width="3" fill="none" stroke-dasharray="7 6" stroke-linecap="round">
+          <rect x="70" y="40" width="120" height="86" rx="10"/>
+          <line x1="84" y1="62" x2="176" y2="62"/><line x1="84" y1="82" x2="176" y2="82"/><line x1="84" y1="102" x2="176" y2="102"/>
+        </g>
+        <g fill="#ff3b5c"><circle cx="168" cy="62" r="4"/><circle cx="168" cy="82" r="4"/><circle cx="168" cy="102" r="4"/></g>
+        <text x="130" y="28" fill="#ff3b5c" font-family="Bangers, Impact" font-size="22" text-anchor="middle" letter-spacing="2">503 · R.I.P.</text>
+        <g stroke="#ff3b5c" stroke-width="4" stroke-linecap="round"><line x1="98" y1="112" x2="110" y2="124"/><line x1="110" y1="112" x2="98" y2="124"/></g>
+      </svg>
+    </div>
+    <div class="story" id="story"></div>
+    <div class="intro-actions">
+      <button class="btn ghost" id="listenBtn">🗣️ Écouter l'histoire</button>
+      <button class="btn" id="startBtn" style="visibility:hidden">🔍 Commencer l'enquête</button>
+      <button class="btn ghost" id="skipBtn">Passer l'intro ⏭</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== BOARD ===================== -->
+<section id="board" class="screen">
+  <div class="topbar">
+    <div class="logo">🔪 Qui a tué le <b>Serveur</b> <i>?</i></div>
+    <div class="stats">
+      <div class="pill">🕵️ Interrogatoires <strong id="stInt">0/18</strong></div>
+      <div class="pill">📒 Indices <strong id="stClues">0</strong></div>
+      <div class="pill">✉️ Enveloppes <strong id="stEnv">0/3</strong></div>
+      <div class="pill timer">⏱️ <strong id="timer">00:00</strong></div>
+    </div>
+  </div>
+  <div class="layout">
+    <div class="leftcol">
+      <div class="section-title">Les suspects <small>Clique sur un suspect pour l'interroger</small></div>
+      <div class="suspects" id="suspects"></div>
+      <div class="env-head">
+        <div class="section-title">Les pièces du dossier <small>Chaque énigme résolue débloque l'enveloppe suivante</small></div>
+        <button class="btn yellow small" id="accuseBtn">⚖️ Accuser</button>
+      </div>
+      <div class="envelopes" id="envelopes"></div>
+    </div>
+    <aside class="notebook" id="notebook">
+      <h3>📒 Carnet d'enquête</h3>
+      <div class="empty" id="nbEmpty">Aucun indice pour l'instant.<br>Interroge les suspects et ouvre les enveloppes…</div>
+      <div id="notes"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- ===================== ACCUSATION ===================== -->
+<section id="accuse" class="screen">
+  <div class="topbar">
+    <div class="logo">⚖️ L'<b>accusation</b></div>
+    <div class="stepdots" id="stepdots"><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    <button class="btn ghost" id="backBtn" style="margin:0">← Retour à l'enquête</button>
+  </div>
+  <div class="wizard">
+    <div class="acc-step"><h3><span>1/6</span> Qui est le coupable ?</h3><div class="pick" id="pickGuilty"></div></div>
+    <div class="acc-step"><h3><span>2/6</span> Qui est son complice ?</h3><div class="pick" id="pickAcc"></div></div>
+    <div class="acc-step"><h3><span>3/6</span> Quelle était l'arme du crime ?</h3><div class="list-opts" id="pickWeapon"></div></div>
+    <div class="acc-step"><h3><span>4/6</span> Quel était le mobile ?<small>La limite de REST qui explique le crime</small></h3><div class="list-opts" id="pickMotive"></div></div>
+    <div class="acc-step"><h3><span>5/6</span> Quels avantages de REST ont retardé la mort ?<small>Plusieurs réponses possibles</small></h3><div class="list-opts" id="pickAlibi"></div></div>
+    <div class="acc-step"><h3><span>6/6</span> Qui aurait pu sauver le Serveur ?</h3><div class="list-opts" id="pickSave"></div></div>
+  </div>
+  <div class="wiz-nav">
+    <button class="btn ghost" id="prevStep">◀ Précédent</button>
+    <button class="btn yellow" id="nextStep">Suivant ▶</button>
+    <button class="btn" id="verdictBtn">🔨 Rendre le verdict</button>
+  </div>
+</section>
+
+<!-- ===================== REVEAL ===================== -->
+<section id="reveal" class="screen">
+  <div class="rv-stage" id="rv0">
+    <div class="drum" id="drum"></div>
+    <div class="verdicts" id="verdicts"></div>
+  </div>
+  <div class="rv-stage" id="rv1"><div class="scorebox" id="scorebox"></div></div>
+  <div class="rv-stage" id="rv2">
+    <div class="section-title center">🕵️ Le mot de la fin</div>
+    <div class="final-text" id="finalText">
+      « Le Serveur n'a pas été tué d'un seul coup, mais par <b>3 200 petites questions par seconde</b>.
+      Polling ne voulait pas faire de mal : il voulait juste savoir. Mais REST ne sait pas parler en premier, alors Polling a demandé, encore et encore.
+      Et à chaque fois, la Gourmande répondait avec <b>2 Mo</b> de détails dont personne n'avait besoin.<br><br>
+      Le Cache et l'Amnésique ont tout fait pour sauver la victime. Grâce à eux, elle a tenu <b>47 minutes</b> au lieu de 5.<br><br>
+      La leçon ? <b>REST est simple, fiable et scalable, mais ce n'est pas l'outil idéal pour le temps réel.</b> Il fallait appeler WebSocket.
+      Et pour éviter les réponses trop lourdes, il fallait un endpoint plus léger, ou GraphQL.<br><br>
+      L'affaire est close. »
+    </div>
+  </div>
+  <div class="rv-stage" id="rv3">
+    <div class="section-title center">📊 Le débrief</div>
+    <div class="debrief">
+      <div class="dcol" style="--c:var(--green)">
+        <h3>✅ Les avantages (les alibis)</h3>
+        <div class="ditem"><div class="e">🧰</div><div><b>Simplicité</b><span>Utilise HTTP et ses méthodes standard : GET, POST, PUT, DELETE.</span></div></div>
+        <div class="ditem"><div class="e">🧠</div><div><b>Stateless</b><span>Chaque requête contient tout ce qu'il faut, le serveur ne garde aucune mémoire.</span></div></div>
+        <div class="ditem"><div class="e">📈</div><div><b>Scalabilité</b><span>Sans session, on ajoute des serveurs facilement et n'importe lequel peut répondre.</span></div></div>
+        <div class="ditem"><div class="e">🗄️</div><div><b>Mise en cache</b><span>Les réponses GET peuvent être gardées et réutilisées.</span></div></div>
+        <div class="ditem"><div class="e">🔌</div><div><b>Découplage client / serveur</b><span>L'app et le serveur évoluent séparément tant que l'API reste la même.</span></div></div>
+        <div class="ditem"><div class="e">🌍</div><div><b>Universalité</b><span>Fonctionne avec n'importe quel langage et n'importe quelle plateforme.</span></div></div>
+      </div>
+      <div class="dcol" style="--c:var(--red)">
+        <h3>❌ Les limites (les mobiles)</h3>
+        <div class="ditem"><div class="e">📱</div><div><b>Pas de temps réel</b><span>Le serveur ne peut pas prévenir le client, il faut faire du polling.</span></div></div>
+        <div class="ditem"><div class="e">🍔</div><div><b>Over-fetching</b><span>L'endpoint renvoie plus de données que nécessaire.</span></div></div>
+        <div class="ditem"><div class="e">🧩</div><div><b>Under-fetching</b><span>Il faut plusieurs requêtes pour construire une seule page.</span></div></div>
+        <div class="ditem"><div class="e">⏳</div><div><b>Cache inutile sur les données qui changent</b><span>Une copie d'un statut qui change sans arrêt serait vite fausse.</span></div></div>
+        <div class="ditem"><div class="e">🎒</div><div><b>Requêtes plus lourdes</b><span>Stateless oblige à renvoyer le token et tous les paramètres à chaque fois.</span></div></div>
+        <div class="ditem"><div class="e">🔢</div><div><b>Versioning délicat</b><span>Passer de /v1 à /v2 peut casser les anciennes versions de l'app.</span></div></div>
+      </div>
+    </div>
+  </div>
+  <div class="rv-stage" id="rv4">
+    <div class="section-title center">🔄 Les alternatives à REST</div>
+    <div class="alts">
+      <div class="alt"><b>⚡ WebSocket / SSE</b><p>Le serveur pousse les données au client en temps réel.</p></div>
+      <div class="alt"><b>🐙 GraphQL</b><p>Le client demande exactement les champs dont il a besoin, en une seule requête.</p></div>
+      <div class="alt"><b>🚄 gRPC</b><p>Des échanges très rapides et typés entre services.</p></div>
+    </div>
+    <div class="key">💡 REST n'est ni bon ni mauvais : c'est un excellent choix pour la plupart des API, mais il faut connaître ses limites pour choisir le bon outil.</div>
+    <button class="btn" id="replayBtn">🔁 Rejouer l'enquête</button>
+  </div>
+  <div class="rv-nav" id="rvNav">
+    <button class="btn ghost" id="rvPrev">◀ Précédent</button>
+    <span id="rvLabel">1 / 5</span>
+    <button class="btn yellow" id="rvNext">Suivant ▶</button>
+  </div>
+</section>
+
+<!-- ===================== CONTRÔLES ===================== -->
+<div class="fctl">
+  <button id="fsBtn" title="Raccourci : F">⛶ Plein écran</button>
+  <button id="ttsBtn" title="Raccourci : L">🗣️ Lecture : OFF</button>
+  <button id="soundBtn" class="on" title="Raccourci : M">🔊 Son</button>
+</div>
+
+<!-- ===================== MODAL ===================== -->
+<div class="modal" id="modal"><div class="mbox" id="mbox"><button class="close" id="closeBtn">×</button><div id="mcontent"></div></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   AVATARS (personnages originaux en SVG)
+   ========================================================= */
+const eyes = (x1,x2,y,mood='') => `
+  <g class="eyes">
+    <ellipse cx="${x1}" cy="${y}" rx="11" ry="${mood==='sleepy'?4:12}" fill="#fff"/>
+    <ellipse cx="${x2}" cy="${y}" rx="11" ry="${mood==='sleepy'?4:12}" fill="#fff"/>
+    ${mood==='sleepy'?'':`<circle cx="${x1+3}" cy="${y+2}" r="5.5" fill="#111"/><circle cx="${x2+3}" cy="${y+2}" r="5.5" fill="#111"/>
+    <circle cx="${x1+5}" cy="${y-1}" r="2" fill="#fff"/><circle cx="${x2+5}" cy="${y-1}" r="2" fill="#fff"/>`}
+  </g>`;
+
+const AV = {
+  polling: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="50" ry="8" fill="rgba(0,0,0,.35)"/>
+    <g stroke="#22d3ee" stroke-width="5" fill="none" stroke-linecap="round" opacity=".8">
+      <path d="M150 40 q16 16 0 32"><animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/></path>
+      <path d="M162 30 q26 26 0 52"><animate attributeName="opacity" values="0;1;0" dur="1s" begin=".25s" repeatCount="indefinite"/></path>
+      <path d="M50 40 q-16 16 0 32"><animate attributeName="opacity" values="0;1;0" dur="1s" repeatCount="indefinite"/></path>
+    </g>
+    <rect x="58" y="22" width="84" height="150" rx="18" fill="#0e7490"/>
+    <rect x="64" y="34" width="72" height="118" rx="10" fill="#22d3ee"/>
+    <rect x="88" y="27" width="24" height="4" rx="2" fill="#083344"/>
+    ${eyes(86,114,72)}
+    <path d="M84 104 q16 -10 32 0" stroke="#083344" stroke-width="5" fill="none" stroke-linecap="round"/>
+    <circle cx="74" cy="92" r="6" fill="#ff6ec7" opacity=".55"/><circle cx="126" cy="92" r="6" fill="#ff6ec7" opacity=".55"/>
+    <path d="M118 52 l6 -10 M126 56 l9 -5" stroke="#083344" stroke-width="3" stroke-linecap="round"/>
+    <text x="100" y="138" font-family="JetBrains Mono,monospace" font-size="12" font-weight="700" fill="#083344" text-anchor="middle">GET? GET?</text>
+    <rect x="44" y="96" width="16" height="34" rx="8" fill="#0e7490"/><rect x="140" y="96" width="16" height="34" rx="8" fill="#0e7490"/>
+    <rect x="76" y="168" width="14" height="16" rx="5" fill="#0e7490"/><rect x="110" y="168" width="14" height="16" rx="5" fill="#0e7490"/>
+  </svg>`,
+  overfetch: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="64" ry="8" fill="rgba(0,0,0,.35)"/>
+    <path d="M30 96 q0 -66 70 -66 q70 0 70 66 z" fill="#ff8a3d"/>
+    <g fill="#fff6d6"><ellipse cx="70" cy="52" rx="5" ry="3"/><ellipse cx="100" cy="42" rx="5" ry="3"/><ellipse cx="130" cy="52" rx="5" ry="3"/><ellipse cx="85" cy="66" rx="5" ry="3"/><ellipse cx="118" cy="64" rx="5" ry="3"/></g>
+    <path d="M24 100 q20 14 38 0 q20 14 38 0 q20 14 38 0 q20 14 38 0 v10 h-152z" fill="#4ade80"/>
+    <rect x="26" y="110" width="148" height="16" rx="6" fill="#ffd400"/>
+    <rect x="24" y="124" width="152" height="24" rx="10" fill="#7c2d12"/>
+    <path d="M30 148 h140 q0 26 -70 26 q-70 0 -70 -26z" fill="#ff8a3d"/>
+    ${eyes(80,120,80)}
+    <path d="M78 152 q22 18 44 0" stroke="#7c2d12" stroke-width="5" fill="#fff" stroke-linecap="round"/>
+    <circle cx="58" cy="92" r="7" fill="#ff3b5c" opacity=".35"/><circle cx="142" cy="92" r="7" fill="#ff3b5c" opacity=".35"/>
+    <g font-family="JetBrains Mono,monospace" font-size="11" fill="#ffd400" font-weight="700">
+      <text x="2" y="30">{…}</text><text x="160" y="24">2 Mo</text><text x="168" y="120">[ ]</text>
+    </g>
+  </svg>`,
+  underfetch: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="56" ry="8" fill="rgba(0,0,0,.35)"/>
+    <path d="M44 50 h36 q-6 -22 20 -22 q26 0 20 22 h36 v38 q22 -6 22 20 q0 26 -22 20 v40 h-112 v-40 q-22 6 -22 -20 q0 -26 22 -20z" fill="#a78bfa"/>
+    <path d="M44 50 h36 q-6 -22 20 -22 q26 0 20 22 h36 v38 q22 -6 22 20 q0 26 -22 20 v40 h-112 v-40 q-22 6 -22 -20 q0 -26 22 -20z" fill="none" stroke="#6d28d9" stroke-width="4"/>
+    ${eyes(80,120,92)}
+    <path d="M84 126 h32" stroke="#4c1d95" stroke-width="5" stroke-linecap="round"/>
+    <g transform="translate(150 20) rotate(20)"><path d="M0 0 h14 q-2 -8 7 -8 q9 0 7 8 h14 v14 h-42z" fill="#ffd400"/></g>
+    <g transform="translate(14 150) rotate(-25)"><path d="M0 0 h14 q-2 -8 7 -8 q9 0 7 8 h14 v14 h-42z" fill="#22d3ee"/></g>
+    <text x="100" y="160" font-family="Bangers,Impact" font-size="18" fill="#2e1065" text-anchor="middle">1/7…</text>
+  </svg>`,
+  cache: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="56" ry="8" fill="rgba(0,0,0,.35)"/>
+    <rect x="46" y="20" width="108" height="160" rx="12" fill="#0f9e6e"/>
+    <rect x="54" y="30" width="92" height="64" rx="8" fill="#2ee6a0"/>
+    <rect x="54" y="102" width="92" height="32" rx="6" fill="#18b981"/>
+    <rect x="54" y="140" width="92" height="32" rx="6" fill="#18b981"/>
+    <rect x="86" y="113" width="28" height="8" rx="4" fill="#064e3b"/><rect x="86" y="151" width="28" height="8" rx="4" fill="#064e3b"/>
+    <g stroke="#064e3b" stroke-width="3" fill="none"><circle cx="80" cy="60" r="13"/><circle cx="120" cy="60" r="13"/><line x1="93" y1="60" x2="107" y2="60"/></g>
+    <circle cx="82" cy="61" r="5" fill="#064e3b"/><circle cx="122" cy="61" r="5" fill="#064e3b"/>
+    <path d="M86 82 q14 6 28 0" stroke="#064e3b" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <rect x="128" y="136" width="44" height="28" rx="4" fill="#fdf6e3" transform="rotate(-12 150 150)"/>
+    <text x="150" y="155" font-family="JetBrains Mono" font-size="10" fill="#064e3b" font-weight="700" text-anchor="middle" transform="rotate(-12 150 150)">HIT 82%</text>
+  </svg>`,
+  stateless: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="56" ry="8" fill="rgba(0,0,0,.35)"/>
+    <path d="M54 120 q-30 -6 -26 -40 q4 -30 34 -32 q8 -26 38 -22 q30 -4 38 22 q30 2 34 32 q4 34 -26 40 q-6 30 -46 30 q-40 0 -46 -30z" fill="#ff6ec7"/>
+    <g stroke="#be185d" stroke-width="4" fill="none" stroke-linecap="round" opacity=".7">
+      <path d="M72 46 q10 14 0 28"/><path d="M128 46 q-10 14 0 28"/><path d="M100 32 v24"/><path d="M60 110 q14 -8 26 0"/><path d="M114 110 q14 -8 26 0"/>
+    </g>
+    <rect x="40" y="60" width="122" height="20" rx="8" fill="#fff" transform="rotate(-8 100 70)"/>
+    <path d="M90 62 l20 14 M110 62 l-20 14" stroke="#ff3b5c" stroke-width="4" transform="rotate(-8 100 70)"/>
+    ${eyes(80,120,104,'sleepy')}
+    <ellipse cx="100" cy="132" rx="8" ry="6" fill="#831843"/>
+    <text x="160" y="40" font-family="Bangers,Impact" font-size="28" fill="#ffd400">?<animate attributeName="y" values="40;30;40" dur="2s" repeatCount="indefinite"/></text>
+    <text x="24" y="44" font-family="Bangers,Impact" font-size="22" fill="#ffd400">?<animate attributeName="y" values="44;36;44" dur="2.4s" repeatCount="indefinite"/></text>
+  </svg>`,
+  websocket: `<svg viewBox="0 0 200 200">
+    <ellipse cx="100" cy="188" rx="46" ry="8" fill="rgba(0,0,0,.35)"/>
+    <path d="M118 10 l-62 96 h40 l-16 80 l70 -104 h-42 z" fill="#ffe14d" stroke="#b45309" stroke-width="5" stroke-linejoin="round"/>
+    <rect x="66" y="80" width="30" height="16" rx="6" fill="#111"/><rect x="104" y="80" width="30" height="16" rx="6" fill="#111"/>
+    <line x1="96" y1="86" x2="104" y2="86" stroke="#111" stroke-width="4"/>
+    <rect x="70" y="82" width="8" height="4" rx="2" fill="#fff" opacity=".6"/><rect x="108" y="82" width="8" height="4" rx="2" fill="#fff" opacity=".6"/>
+    <path d="M92 116 q12 6 22 -4" stroke="#92400e" stroke-width="4" fill="none" stroke-linecap="round"/>
+    <g fill="#22d3ee"><circle cx="34" cy="60" r="4"><animate attributeName="r" values="2;5;2" dur="1.4s" repeatCount="indefinite"/></circle><circle cx="170" cy="130" r="4"><animate attributeName="r" values="5;2;5" dur="1.4s" repeatCount="indefinite"/></circle></g>
+  </svg>`
+};
+
+/* =========================================================
+   DONNÉES DU JEU
+   ========================================================= */
+const CLUES = {
+  'p1':{t:'Polling envoyait GET /orders/{id} toutes les secondes, pour 3 200 clients.',k:'fact'},
+  'p2':{t:'En REST, le serveur ne peut jamais prévenir le client : pas de temps réel.',k:'lim'},
+  'p3':{t:"L'app n'utilisait que le champ « status » de la réponse.",k:'fact'},
+  'o1':{t:'Chaque réponse de /orders/{id} pesait 2 Mo (photos, menu, avis…).',k:'fact'},
+  'o2':{t:'Over-fetching : un endpoint REST renvoie une ressource fixe, le client ne choisit pas les champs.',k:'lim'},
+  'o3':{t:'La Gourmande et le Harceleur travaillaient ensemble sur le même endpoint.',k:'fact'},
+  'u1':{t:"Under-fetching : l'accueil a besoin de 7 requêtes pour une seule page.",k:'lim'},
+  'u2':{t:'Under-Fetching ne faisait ses 7 requêtes qu\'une fois par client, à l\'ouverture.',k:'fact'},
+  'u3':{t:'Les requêtes de l\'accueil étaient en grande partie servies par le Cache.',k:'fact'},
+  'c1':{t:'Le Cache a servi 82 % des requêtes sur /restaurants.',k:'av'},
+  'c2':{t:'Les réponses GET de REST se mettent facilement en cache grâce à HTTP.',k:'av'},
+  'c3':{t:'Le Cache ne peut rien pour les statuts qui changent tout le temps (no-store).',k:'lim'},
+  's1':{t:'Stateless : le serveur ne garde aucune mémoire entre deux requêtes.',k:'av'},
+  's2':{t:'Grâce à Stateless, 3 serveurs ont été ajoutés en urgence à 20h20 : scalabilité.',k:'av'},
+  's3':{t:'Stateless oblige chaque requête à renvoyer le token et tous les paramètres.',k:'lim'},
+  'w1':{t:"WebSocket n'était pas installé ce soir-là.",k:'fact'},
+  'w2':{t:'WebSocket garde la connexion ouverte et pousse les données en temps réel.',k:'fact'},
+  'w3':{t:'Avec WebSocket, le polling n\'aurait jamais existé.',k:'av'},
+  'e1':{t:'Bande passante : 3 200 × 2,1 Mo ≈ 6,7 Go envoyés chaque seconde !',k:'fact'},
+  'e2':{t:'Le code mobile faisait setInterval(…, 1000) et ne lisait que order.status.',k:'fact'},
+  'e3':{t:'Témoins : aucune connexion ws:// ouverte, et l\'écran de suivi a tout bloqué.',k:'fact'},
+};
+
+const SUSPECTS = [
+  {id:'polling',name:'Polling',nick:'le Harceleur',c:'#22d3ee',role:"Le code de l'app mobile qui vérifie le statut de la commande",trait:'😰 Nerveux · parle très vite',
+   hello:"Moi ? Je n'ai fait que poser une question ! Une petite question ! Une seule… enfin… une par seconde.",
+   qs:[
+    {ic:'🕗',q:'Que faisais-tu à 20h30 ?',a:"Je demandais si la commande était prête. <b>GET /orders/1043</b>… GET /orders/1043… Une fois par seconde. Pour chacun des <b>3 200 clients</b>. C'est tout !",cl:'p1'},
+    {ic:'❓',q:'Pourquoi demander aussi souvent ?',a:"Parce que le serveur ne me prévient JAMAIS ! En REST, c'est <b>toujours le client qui demande</b>. Si je ne demande pas, je ne sais rien ! Je n'ai pas le choix !",cl:'p2'},
+    {ic:'📦',q:'Que fais-tu de la réponse que tu reçois ?',a:"Je lis le statut : « en préparation », « en route »… Juste le <b>statut</b>. Le reste… euh… je le jette. 😬",cl:'p3'},
+   ]},
+  {id:'overfetch',name:'Over-Fetching',nick:'la Gourmande',c:'#ff8a3d',role:'La réponse de l\'endpoint GET /orders/{id}',trait:'🍔 Généreuse · bavarde',
+   hello:"On m'a demandé une commande, j'ai donné LA commande ! Avec tout ce qu'il faut. C'est de la politesse !",
+   qs:[
+    {ic:'⚖️',q:'Combien pesait chacune de tes réponses ?',a:"Oh, presque rien ! <b>2 mégaoctets</b>. Les photos HD des plats, le menu complet, les 540 avis, l'historique du client… Le minimum !",cl:'o1'},
+    {ic:'✂️',q:"Pourquoi ne pas envoyer seulement le statut ?",a:"Mais je ne sais pas faire ça ! Un endpoint REST, c'est une <b>ressource complète et fixe</b>. Le client ne peut pas choisir ses champs. Il prend tout ou rien.",cl:'o2'},
+    {ic:'🤝',q:'Connais-tu Polling ?',a:"Polling ? Bien sûr… On se voyait… <b>3 200 fois par seconde</b>. À chaque fois qu'il demandait, je répondais. Mais c'est LUI qui n'arrêtait pas !",cl:'o3'},
+   ]},
+  {id:'underfetch',name:'Under-Fetching',nick:'le Puzzle',c:'#a78bfa',role:"L'écran d'accueil de l'application",trait:'🧩 Perfectionniste · toujours incomplet',
+   hello:"J'ai juste besoin de quelques petites requêtes pour afficher une page. C'est normal, non ?",
+   qs:[
+    {ic:'🔢',q:'Combien de requêtes fais-tu pour une page ?',a:"Seulement 7 ! /restaurants, puis le menu de chacun, puis les avis, puis les promos… Une ressource par endpoint, alors <b>beaucoup d'allers-retours</b>.",cl:'u1'},
+    {ic:'🔁',q:'Tu les refais souvent ?',a:"Non, non ! <b>Une seule fois par client</b>, quand il ouvre l'app. Après, je laisse la place à l'écran de suivi de commande.",cl:'u2'},
+    {ic:'🗄️',q:'Est-ce que quelqu\'un t\'a aidé ?',a:"Oui, le Cache ! Il avait déjà des copies des restaurants et des menus. <b>La plupart de mes requêtes n'ont même pas touché le serveur.</b> Je suis lent, d'accord… mais pas un assassin !",cl:'u3'},
+   ]},
+  {id:'cache',name:'Le Cache',nick:'le Gardien',c:'#2ee6a0',role:'Le système qui garde des copies des réponses déjà envoyées',trait:'🧐 Calme · organisé · un peu vexé',
+   hello:"On m'accuse d'avoir servi des données périmées ? Sans moi, le serveur serait mort à 20h05 !",
+   qs:[
+    {ic:'📊',q:'Qu\'as-tu fait ce soir-là ?',a:"J'ai répondu à <b>82 % des requêtes</b> sur /restaurants et 75 % sur les menus. Le serveur n'a même pas eu à les calculer.",cl:'c1'},
+    {ic:'⚙️',q:'Pourquoi est-ce si facile de te mettre en place ?',a:"Parce que REST s'appuie sur HTTP ! Les requêtes <b>GET</b> sont faites pour être mises en cache, avec des en-têtes comme Cache-Control. C'est un <b>énorme avantage</b> de REST.",cl:'c2'},
+    {ic:'🚫',q:'Et pour les statuts de commande ?',a:"… Là, je n'ai rien pu faire. Le statut change tout le temps, donc on m'a interdit de le garder : <b>Cache-Control: no-store</b>. 0 %. Je m'en veux…",cl:'c3'},
+   ]},
+  {id:'stateless',name:'Stateless',nick:"l'Amnésique",c:'#ff6ec7',role:'Le principe selon lequel le serveur ne garde aucune mémoire entre deux requêtes',trait:'😵 Distrait · oublie tout',
+   hello:"Le meurtre ? Quel meurtre ? Je ne me souviens de rien. Je ne me souviens jamais de rien, c'est mon principe.",
+   qs:[
+    {ic:'🧠',q:'Pourquoi ne te souviens-tu de rien ?',a:"C'est ma nature ! En REST, le serveur <b>ne garde aucune session</b>. Chaque requête arrive avec tout ce qu'il faut savoir. On se connaît ?",cl:'s1'},
+    {ic:'🕣',q:'Que s\'est-il passé à 20h20 ?',a:"Ah ça, je m'en souviens ! On a ajouté <b>3 serveurs en urgence</b>. Comme aucun ne garde de mémoire, <b>n'importe lequel</b> pouvait répondre. J'ai retardé la mort de 30 minutes !",cl:'s2'},
+    {ic:'🎒',q:'Y a-t-il un inconvénient à être comme toi ?',a:"Hmm… Oui. Comme j'oublie tout, <b>chaque requête doit tout renvoyer</b> : le token, les paramètres… Les requêtes sont un peu plus lourdes. Qui êtes-vous déjà ?",cl:'s3'},
+   ]},
+  {id:'websocket',name:'WebSocket',nick:"l'Étranger",c:'#ffe14d',role:'Une technologie de communication en temps réel',trait:'😎 Mystérieux · stylé',
+   hello:"On m'a vu près du serveur ? Impossible. On ne m'a jamais invité dans ce projet.",
+   qs:[
+    {ic:'📍',q:'Où étais-tu à 20h47 ?',a:"Nulle part. Je n'étais <b>pas installé</b>. Demandez à l'administrateur réseau : aucune connexion ws:// ce soir-là.",cl:'w1'},
+    {ic:'⚡',q:'En quoi es-tu différent de REST ?',a:"Moi, je garde la <b>connexion ouverte</b>. Quand le statut change, c'est le serveur qui <b>pousse</b> l'info au client. Pas besoin de demander.",cl:'w2'},
+    {ic:'🦸',q:'Aurais-tu pu sauver le Serveur ?',a:"Avec moi, une seule connexion par client, et un petit message quand la commande change. <b>Le polling n'aurait jamais existé.</b> Mais personne ne m'a appelé…",cl:'w3'},
+   ]},
+];
+
+const ENVS = [
+  {id:0,label:'Les logs du serveur',hint:'Terminal · 20h00 → 20h47'},
+  {id:1,label:'Les pièces à conviction',hint:'Code · JSON · Cache'},
+  {id:2,label:'Les témoignages',hint:'4 témoins'},
+];
+
+/* =========================================================
+   ÉTAT
+   ========================================================= */
+let S;
+function resetState(){
+  S={asked:{},clues:[],envSolved:[false,false,false],envOpened:[false,false,false],start:null,acc:{guilty:null,acc:null,weapon:null,motive:null,alibi:new Set(),save:null}};
+}
+resetState();
+let sound=true;
+
+/* =========================================================
+   UTILITAIRES
+   ========================================================= */
+const $=s=>document.querySelector(s);
+function show(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));$('#'+id).classList.add('active');window.scrollTo(0,0)}
+function toast(msg){const t=$('#toast');t.innerHTML=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2600)}
+let actx;
+function beep(f=520,d=.08,type='square',v=.05){
+  if(!sound)return;
+  try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=actx.createOscillator(),g=actx.createGain();o.type=type;o.frequency.value=f;g.gain.value=v;
+    o.connect(g);g.connect(actx.destination);o.start();g.gain.exponentialRampToValueAtTime(.0001,actx.currentTime+d);o.stop(actx.currentTime+d+.02);}catch(e){}
+}
+const jingle=()=>{[523,659,784,1046].forEach((f,i)=>setTimeout(()=>beep(f,.15,'triangle',.07),i*110))};
+const sad=()=>{[400,300].forEach((f,i)=>setTimeout(()=>beep(f,.2,'sawtooth',.04),i*160))};
+
+function addClue(id){
+  if(!id||S.clues.includes(id))return false;
+  S.clues.push(id);
+  const c=CLUES[id];
+  const lab={lim:'LIMITE',av:'AVANTAGE',fact:'FAIT'}[c.k];
+  $('#nbEmpty').style.display='none';
+  const d=document.createElement('div');d.className='note';
+  d.innerHTML=`<span class="tag ${c.k}">${lab}</span>${c.t}`;
+  $('#notes').prepend(d);
+  updateStats();
+  return true;
+}
+function updateStats(){
+  const n=Object.values(S.asked).reduce((a,s)=>a+s.size,0);
+  $('#stInt').textContent=n+'/18';
+  $('#stClues').textContent=S.clues.length;
+  $('#stEnv').textContent=S.envSolved.filter(Boolean).length+'/3';
+}
+
+/* =========================================================
+   LECTURE À VOIX HAUTE + PLEIN ÉCRAN
+   ========================================================= */
+let tts=false,frVoice=null;
+const hasTTS='speechSynthesis' in window;
+function pickVoice(){const vs=speechSynthesis.getVoices();frVoice=vs.find(v=>/^fr[-_]FR/i.test(v.lang))||vs.find(v=>/^fr/i.test(v.lang))||null}
+if(hasTTS){pickVoice();speechSynthesis.onvoiceschanged=pickVoice}
+const VOICES={narr:[1,1],polling:[1.6,1.3],overfetch:[1.3,1.05],underfetch:[1.15,.95],cache:[.7,.9],stateless:[1,.8],websocket:[.55,.95],witness:[1.1,1.02]};
+function cleanTxt(h){
+  return h.replace(/<[^>]+>/g,' ').replace(/\p{Extended_Pictographic}|️|‍/gu,'')
+   .replace(/(\d),(\d)\s*Mo/g,'$1 virgule $2 mégaoctets').replace(/(\d),(\d)\s*Go/g,'$1 virgule $2 gigaoctets')
+   .replace(/\bMo\b/g,'mégaoctets').replace(/\bGo\b/g,'gigaoctets').replace(/req\/s/g,'requêtes par seconde')
+   .replace(/\/api\//g,' api ').replace(/\{id\}/g,' id ').replace(/\{…\}|\.\.\./g,'…').replace(/[«»"`]/g,'').replace(/\s+/g,' ').trim();
+}
+function speak(h,who='narr',o={}){
+  if((!tts&&!o.force)||!hasTTS)return;
+  if(!o.queue)speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(cleanTxt(h));u.lang='fr-FR';if(frVoice)u.voice=frVoice;
+  const [p,r]=VOICES[who]||VOICES.narr;u.pitch=p;u.rate=r;
+  u.onstart=()=>$('#ttsBtn').classList.add('speaking');u.onend=()=>{if(!speechSynthesis.speaking)$('#ttsBtn').classList.remove('speaking')};
+  speechSynthesis.speak(u);
+}
+function stopSpeak(){if(hasTTS)speechSynthesis.cancel();$('#ttsBtn').classList.remove('speaking')}
+function setTTS(v){
+  tts=v;$('#ttsBtn').textContent='🗣️ Lecture : '+(tts?'ON':'OFF');$('#ttsBtn').classList.toggle('on',tts);
+  if(!hasTTS&&tts){toast('⚠️ Ton navigateur ne supporte pas la lecture à voix haute');return}
+  if(tts)speak('Lecture à voix haute activée.');else stopSpeak();
+}
+$('#ttsBtn').onclick=()=>setTTS(!tts);
+function toggleFS(){
+  if(!document.fullscreenElement)(document.documentElement.requestFullscreen?document.documentElement.requestFullscreen():Promise.reject()).catch(()=>toast('Appuie sur F11 pour le plein écran'));
+  else document.exitFullscreen().catch(()=>{});
+}
+$('#fsBtn').onclick=toggleFS;
+document.addEventListener('fullscreenchange',()=>{const f=!!document.fullscreenElement;$('#fsBtn').textContent=f?'🗗 Quitter le plein écran':'⛶ Plein écran';$('#fsBtn').classList.toggle('on',f)});
+$('#soundBtn').onclick=()=>{sound=!sound;$('#soundBtn').textContent=sound?'🔊 Son':'🔇 Muet';$('#soundBtn').classList.toggle('on',sound)};
+document.addEventListener('pointerdown',()=>{try{actx=actx||new (window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}catch(e){}});
+document.addEventListener('keydown',e=>{
+  if(e.ctrlKey||e.altKey||e.metaKey)return;
+  const k=e.key.toLowerCase();
+  if(k==='f')toggleFS();
+  else if(k==='l')setTTS(!tts);
+  else if(k==='m')$('#soundBtn').click();
+  else if(e.key==='ArrowRight'||e.key==='ArrowLeft'){
+    const dir=e.key==='ArrowRight'?1:-1;
+    if($('#reveal').classList.contains('active')&&$('#rvNav').style.visibility==='visible')showRv(rvStage+dir);
+    else if($('#accuse').classList.contains('active')){dir>0?$('#nextStep').click():$('#prevStep').click()}
+  }
+});
+
+/* =========================================================
+   INTRO
+   ========================================================= */
+const tapeTxt=' SCÈNE DE CRIME · NE PAS FRANCHIR · 503 SERVICE UNAVAILABLE · ';
+$('#tape1').textContent=tapeTxt.repeat(12);$('#tape2').textContent=tapeTxt.repeat(12);
+const INTRO=`Vendredi soir, 20h00. La start-up FoodNow lance son application de livraison de repas. Des milliers de téléchargements. La fête est parfaite.
+
+Mais à 20h47, le drame. L'API REST ne répond plus. CPU à 100 %. Erreur 503. Le Serveur est mort.
+
+Six suspects se trouvaient dans le système ce soir-là. L'un d'eux est le coupable. Un autre l'a aidé. Et certains ont peut-être essayé de sauver la victime…
+
+À toi de trouver la vérité, inspecteur.`;
+let typing;
+function typeIntro(){
+  const el=$('#story');let i=0;el.innerHTML='';
+  typing=setInterval(()=>{
+    i++;el.innerHTML=INTRO.slice(0,i).replace(/(20h47|Le Serveur est mort\.|coupable)/g,'<b style="color:var(--red)">$1</b>')+'<span class="cursor">&nbsp;</span>';
+    if(i%3===0)beep(900+Math.random()*200,.02,'square',.015);
+    if(i>=INTRO.length){clearInterval(typing);$('#startBtn').style.visibility='visible'}
+  },28);
+}
+$('#skipBtn').onclick=()=>{clearInterval(typing);$('#story').innerHTML=INTRO.replace(/(20h47|Le Serveur est mort\.|coupable)/g,'<b style="color:var(--red)">$1</b>');$('#startBtn').style.visibility='visible'};
+$('#listenBtn').onclick=()=>speak(INTRO,'narr',{force:true});
+$('#startBtn').onclick=()=>{jingle();stopSpeak();startGame()};
+
+function startGame(){
+  S.start=Date.now();
+  renderSuspects();renderEnvelopes();updateStats();
+  show('board');
+}
+setInterval(()=>{if(!S.start)return;const s=Math.floor((Date.now()-S.start)/1000);$('#timer').textContent=String(Math.floor(s/60)).padStart(2,'0')+':'+String(s%60).padStart(2,'0')},1000);
+
+/* =========================================================
+   SUSPECTS
+   ========================================================= */
+function renderSuspects(){
+  $('#suspects').innerHTML=SUSPECTS.map((s,i)=>{
+    const a=S.asked[s.id]||new Set();
+    return `<div class="scard" style="--c:${s.c}" data-id="${s.id}">
+      <div class="num">SUSPECT #${i+1}</div>
+      <div class="av bob" style="animation-delay:${i*.3}s">${AV[s.id]}</div>
+      <h3>${s.name}</h3><div class="nick">« ${s.nick} »</div>
+      <div class="prog">${[0,1,2].map(k=>`<i class="${a.has(k)?'on':''}"></i>`).join('')}</div>
+    </div>`}).join('');
+  document.querySelectorAll('.scard').forEach(c=>c.onclick=()=>openSuspect(c.dataset.id));
+}
+function openModal(color,html){
+  $('#mbox').style.setProperty('--c',color);$('#mcontent').innerHTML=html;$('#modal').classList.add('open');
+}
+function closeModal(){stopSpeak();$('#modal').classList.remove('open');renderSuspects();renderEnvelopes()}
+$('#closeBtn').onclick=closeModal;
+$('#modal').onclick=e=>{if(e.target.id==='modal')closeModal()};
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal()});
+
+function openSuspect(id){
+  const s=SUSPECTS.find(x=>x.id===id);beep(300,.1,'triangle',.06);
+  S.asked[id]=S.asked[id]||new Set();
+  openModal(s.c,`<div class="interro">
+    <div class="left"><div class="av bob">${AV[s.id]}</div><h2>${s.name}</h2><div class="nick">« ${s.nick} »</div>
+      <div class="role">${s.role}</div><div class="trait">${s.trait}</div></div>
+    <div class="right">
+      <div class="bubble" id="bubble"></div>
+      <button class="replay" id="replay">🔈 Écouter / réécouter</button>
+      <div class="newclue" id="newclue"></div>
+      <div class="questions">${s.qs.map((q,k)=>`<button class="qbtn ${S.asked[id].has(k)?'asked':''}" data-k="${k}"><span class="ic">${q.ic}</span>${q.q}</button>`).join('')}</div>
+    </div></div>`);
+  say(s.hello,id);
+  $('#replay').onclick=()=>speak(lastSay[0],lastSay[1],{force:true});
+  document.querySelectorAll('.qbtn').forEach(b=>b.onclick=()=>{
+    const k=+b.dataset.k,q=s.qs[k];
+    S.asked[id].add(k);b.classList.add('asked');
+    say(q.a,id);
+    const nc=$('#newclue');
+    if(addClue(q.cl)){nc.innerHTML='📒 Nouvel indice noté dans ton carnet !';nc.classList.add('show');jingle()}
+    else{nc.classList.remove('show')}
+    updateStats();
+  });
+}
+let sayT,lastSay=['','narr'];
+function say(html,who='narr'){
+  lastSay=[html,who];speak(html,who);
+  const b=$('#bubble');clearInterval(sayT);
+  const plain=html;let i=0;
+  // effet machine à écrire sur le texte, en gardant les balises
+  const tokens=plain.split(/(<[^>]+>)/);const flat=[];
+  tokens.forEach(t=>{if(t.startsWith('<'))flat.push(t);else for(const ch of t)flat.push(ch)});
+  b.innerHTML='';
+  sayT=setInterval(()=>{i+=2;b.innerHTML=flat.slice(0,i).join('');if(i%6===0)beep(600+Math.random()*300,.015,'square',.012);if(i>=flat.length)clearInterval(sayT)},16);
+}
+
+/* =========================================================
+   ENVELOPPES
+   ========================================================= */
+function envUnlocked(i){return i===0||S.envSolved[i-1]}
+function renderEnvelopes(){
+  $('#envelopes').innerHTML=ENVS.map((e,i)=>{
+    const lock=!envUnlocked(i),done=S.envSolved[i];
+    return `<div class="env ${lock?'locked':''} ${done?'done':''}" data-i="${i}">
+      <div class="seal">${done?'✓':lock?'🔒':i+1}</div>
+      <div class="label">Enveloppe ${i+1} : ${e.label}</div>
+      <div class="hint">${lock?'Résous l\'enveloppe précédente':done?'Énigme résolue ✓':e.hint}</div></div>`}).join('');
+  document.querySelectorAll('.env').forEach(el=>el.onclick=()=>{
+    const i=+el.dataset.i;
+    if(!envUnlocked(i)){toast('🔒 Résous d\'abord l\'énigme de l\'enveloppe '+i);sad();return}
+    openEnv(i);
+  });
+}
+function puzzleHTML(q,opts){
+  return `<div class="puzzle"><h4>🧠 Énigme : ${q}</h4><div class="choices">${opts.map((o,k)=>`<button class="choice" data-k="${k}">${o}</button>`).join('')}</div><div class="feedback" id="fb"></div></div>`;
+}
+function speakEnv(){
+  const box=$('#mcontent');if(!box.querySelector('.econtent'))return;
+  speak(box.querySelector('h2').textContent+'. '+box.querySelector('.lead').textContent);
+  box.querySelectorAll('.testi').forEach(el=>speak(el.querySelector('b').textContent+'. '+el.querySelector('p').textContent,'witness',{queue:true}));
+  speak(box.querySelector('.puzzle h4').textContent,'narr',{queue:true});
+}
+function bindPuzzle(i,good,okMsg,koMsg,clue){
+  speakEnv();
+  document.querySelectorAll('.choice').forEach(b=>b.onclick=()=>{
+    if(S.envSolved[i]&&!b.classList.contains('good')){}
+    const k=+b.dataset.k;
+    if(k===good){
+      b.classList.add('good');$('#fb').innerHTML='✅ '+okMsg;speak('Bravo ! '+okMsg);
+      if(!S.envSolved[i]){S.envSolved[i]=true;addClue(clue);jingle();confetti(60);
+        toast(i<2?'✉️ Enveloppe '+(i+2)+' débloquée !':'🎉 Toutes les enveloppes sont ouvertes !')}
+      updateStats();
+    }else{b.classList.add('bad');$('#fb').innerHTML='❌ '+koMsg;speak('Raté. '+koMsg);sad();setTimeout(()=>b.classList.remove('bad'),600)}
+  });
+}
+function openEnv(i){
+  beep(200,.15,'triangle',.06);S.envOpened[i]=true;
+  if(i===0){
+    openModal('#ffd400',`<div class="econtent"><h2>✉️ Enveloppe 1 : les logs du serveur</h2>
+      <p class="lead">Extrait du journal du serveur, la nuit du crime. Observe bien la taille des réponses…</p>
+      <div class="terminal" id="term"><div class="bar"><i></i><i></i><i></i></div></div>
+      <div class="cpu">CPU <div class="meter"><div id="cpuBar"></div></div><span id="cpuTxt">0 %</span></div>
+      ${puzzleHTML('En utilisant les logs, combien de données le serveur envoyait-il <u>chaque seconde</u> à 20h30 ?',['6,7 Mo','670 Mo','6,7 Go','67 Go'])}
+    </div>`);
+    const L=[
+      ['l-dim','# FoodNow API · production · vendredi'],
+      ['l-info','[20:00:01] GET /api/restaurants          200 OK  (cache HIT)  0.02 s'],
+      ['l-info','[20:00:01] GET /api/restaurants/12/menu  200 OK  (cache HIT)  0.03 s'],
+      ['','[20:00:02] GET /api/orders/1043          200 OK  2.1 MB  0.40 s'],
+      ['','[20:00:03] GET /api/orders/1043          200 OK  2.1 MB  0.41 s'],
+      ['','[20:00:04] GET /api/orders/1043          200 OK  2.1 MB  0.43 s'],
+      ['l-dim','  ...'],
+      ['l-info','[20:20:00] LOAD BALANCER : +3 instances (aucune session à migrer)'],
+      ['l-dim','  ...'],
+      ['l-warn','[20:30:12] GET /api/orders/*   3 200 req/s   CPU 87 %'],
+      ['l-warn','[20:41:55] GET /api/orders/*   3 200 req/s   CPU 96 %'],
+      ['l-err','[20:46:58] GET /api/orders/2290   503 Service Unavailable'],
+      ['l-err','[20:46:59] GET /api/orders/2291   503 Service Unavailable'],
+      ['l-err','[20:47:03] FATAL : server not responding   💀'],
+    ];
+    const cpu=[3,5,7,9,10,10,12,30,30,87,96,100,100,100];
+    let k=0;const term=$('#term');
+    const iv=setInterval(()=>{
+      if(!$('#term')){clearInterval(iv);return}
+      const [c,t]=L[k];const d=document.createElement('div');d.className=c;d.textContent=t;term.appendChild(d);
+      $('#cpuBar').style.width=cpu[k]+'%';$('#cpuTxt').textContent=cpu[k]+' %';
+      beep(c==='l-err'?180:700,.03,'square',.02);
+      k++;if(k>=L.length)clearInterval(iv);
+    },S.envSolved[0]?20:330);
+    bindPuzzle(0,2,'3 200 requêtes × 2,1 Mo ≈ <b>6,7 Go par seconde</b> ! Le serveur était noyé sous les données.','Indice : multiplie le nombre de requêtes par seconde par la taille d\'une réponse.','e1');
+  }
+  if(i===1){
+    openModal('#ffd400',`<div class="econtent"><h2>✉️ Enveloppe 2 : les pièces à conviction</h2>
+      <p class="lead">Trois objets saisis chez FoodNow après le crime.</p>
+      <div class="evid">
+        <div class="piece"><span class="ptag">PIÈCE A · code mobile</span>
+<pre><span class="c">// Pas de notification en temps réel…</span>
+<span class="c">// donc on redemande toutes les secondes</span>
+<span class="k">setInterval</span>(() => {
+  <span class="k">fetch</span>(<span class="s">\`/api/orders/\${orderId}\`</span>)
+    .then(res => res.<span class="k">json</span>())
+    .then(order =>
+      <span class="k">afficher</span>(order.<span class="hl">status</span>));
+}, <span class="n">1000</span>);</pre></div>
+        <div class="piece"><span class="ptag">PIÈCE B · réponse JSON</span>
+<pre>{
+  <span class="s">"id"</span>: <span class="n">1043</span>,
+  <span class="s">"status"</span>: <span class="s">"en préparation"</span>,
+  <span class="s">"client"</span>: { <span class="s">"historique"</span>: [ <span class="c">230 commandes</span> ] },
+  <span class="s">"plats"</span>: [ { <span class="s">"photoHD"</span>: <span class="s">"iVBORw0KGgo…"</span> } ],
+  <span class="s">"restaurant"</span>: {
+    <span class="s">"menuComplet"</span>: [ <span class="c">85 plats</span> ],
+    <span class="s">"avis"</span>: [ <span class="c">540 avis</span> ]
+  }
+}  <span class="c">// 2,1 Mo</span></pre></div>
+        <div class="piece full"><span class="ptag">PIÈCE C · statistiques du Cache</span>
+          <div class="bars">
+            <div class="row"><span>/api/restaurants</span><div class="track"><div class="fill" data-w="82">82 %</div></div></div>
+            <div class="row"><span>/api/restaurants/{id}/menu</span><div class="track"><div class="fill" data-w="75">75 %</div></div></div>
+            <div class="row"><span>/api/orders/{id}  (no-store)</span><div class="track"><div class="fill" data-w="0" style="background:var(--red)"></div></div><b style="color:var(--red)">0 %</b></div>
+          </div></div>
+      </div>
+      ${puzzleHTML('Sur les 2,1 Mo de la pièce B, quel est le seul champ vraiment utilisé par l\'app ?',['"client"','"plats"','"status"','"restaurant"'])}
+    </div>`);
+    setTimeout(()=>document.querySelectorAll('.fill').forEach(f=>f.style.width=f.dataset.w+'%'),150);
+    bindPuzzle(1,2,'Exact ! L\'app n\'utilisait que <b>status</b>, quelques octets sur 2,1 Mo. C\'est l\'<b>over-fetching</b>.','Regarde la pièce A : quelle propriété de <code>order</code> est affichée ?','e2');
+  }
+  if(i===2){
+    const T=[
+      ['⚖️','#2ee6a0','Le Load Balancer',"« À 20h20, on m'a donné 3 serveurs de plus. J'ai pu envoyer les requêtes à n'importe lequel, aucun ne gardait de session. Ça a tenu un moment… »"],
+      ['👩‍💻','#22d3ee','La développeuse mobile',"« On voulait des notifications instantanées, mais on n'avait que l'API REST. Alors on a fait du polling. Tout le monde fait ça, non ? »"],
+      ['🛜','#ffe14d',"L'administrateur réseau","« Aucune connexion ws:// ou wss:// n'a été ouverte ce soir-là. Le service WebSocket n'a jamais été déployé. »"],
+      ['😤','#ff8a3d','Un client mécontent',"« Ma page d'accueil mettait 3 secondes à charger au début, mais après ça allait. C'est l'écran de suivi de commande qui a tout bloqué. »"],
+    ];
+    openModal('#ffd400',`<div class="econtent"><h2>✉️ Enveloppe 3 : les témoignages</h2>
+      <p class="lead">Quatre témoins ont accepté de parler.</p>
+      <div class="testis">${T.map(t=>`<div class="testi" style="--c:${t[1]}"><div class="face">${t[0]}</div><div><b>${t[2]}</b><p>${t[3]}</p></div></div>`).join('')}</div>
+      ${puzzleHTML('D\'après les témoins, quel écran de l\'app a provoqué la surcharge ?',["L'écran d'accueil","L'écran de suivi de commande","L'écran de paiement","L'écran de connexion"])}
+    </div>`);
+    bindPuzzle(2,1,'Oui ! L\'écran de suivi, celui qui faisait du <b>polling</b> sur /orders/{id}.','Relis le témoignage du client mécontent.','e3');
+  }
+}
+
+/* =========================================================
+   ACCUSATION
+   ========================================================= */
+const WEAPONS=[
+  ['GET /api/restaurants, une fois par client','w0'],
+  ['GET /api/orders/{id}, envoyé toutes les secondes par chaque client','w1'],
+  ['POST /api/orders, une commande géante','w2'],
+  ['DELETE /api/server, un pirate','w3'],
+];
+const MOTIVES=[
+  ['REST est trop compliqué à utiliser','m0'],
+  ['Le serveur gardait trop de sessions en mémoire','m1'],
+  ['REST ne permet pas au serveur de pousser les données en temps réel, et les réponses étaient trop lourdes','m2'],
+  ['Le cache a servi de fausses données','m3'],
+];
+const ALIBIS=[
+  ['🗄️ La mise en cache des réponses GET','a0',true],
+  ['🧠 Le mode stateless, qui permet d\'ajouter des serveurs (scalabilité)','a1',true],
+  ['⚡ Le temps réel natif de REST','a2',false],
+  ['✂️ Le choix des champs dans la réponse','a3',false],
+];
+const SAVES=[
+  ['⚡ WebSocket, pour pousser le statut en temps réel','s0'],
+  ['📦 Une réponse encore plus complète, avec plus de photos','s1'],
+  ['🔁 Un polling encore plus rapide, toutes les 0,1 seconde','s2'],
+  ['🧠 Un serveur qui garde des sessions en mémoire','s3'],
+];
+var renderAccuse=function(){
+  const pick=(el,key)=>{
+    $(el).innerHTML=SUSPECTS.map(s=>`<div class="opt ${S.acc[key]===s.id?'sel':''}" style="--c:${s.c}" data-id="${s.id}"><div class="av">${AV[s.id]}</div><b>${s.name}</b></div>`).join('');
+    $(el).querySelectorAll('.opt').forEach(o=>o.onclick=()=>{S.acc[key]=o.dataset.id;beep(500,.05);renderAccuse()});
+  };
+  pick('#pickGuilty','guilty');pick('#pickAcc','acc');
+  const list=(el,arr,key,multi)=>{
+    $(el).innerHTML=arr.map(a=>{const sel=multi?S.acc[key].has(a[1]):S.acc[key]===a[1];
+      return `<div class="opt ${sel?'sel':''}" data-v="${a[1]}">${a[0].replace(/(\/api\/[^\s,]+)/g,'<code>$1</code>')}</div>`}).join('');
+    $(el).querySelectorAll('.opt').forEach(o=>o.onclick=()=>{
+      const v=o.dataset.v;
+      if(multi){S.acc[key].has(v)?S.acc[key].delete(v):S.acc[key].add(v)}else S.acc[key]=v;
+      beep(500,.05);renderAccuse();
+    });
+  };
+  list('#pickWeapon',WEAPONS,'weapon');list('#pickMotive',MOTIVES,'motive');list('#pickAlibi',ALIBIS,'alibi',true);list('#pickSave',SAVES,'save');
+}
+const STEP_KEYS=['guilty','acc','weapon','motive','alibi','save'];
+let accStep=0;
+function stepAnswered(n){const k=STEP_KEYS[n];return k==='alibi'?S.acc.alibi.size>0:!!S.acc[k]}
+function showStep(n){
+  accStep=Math.max(0,Math.min(5,n));
+  document.querySelectorAll('.acc-step').forEach((el,i)=>el.classList.toggle('cur',i===accStep));
+  document.querySelectorAll('#stepdots i').forEach((d,i)=>{d.className=i===accStep?'on':stepAnswered(i)?'done':''});
+  $('#prevStep').style.visibility=accStep===0?'hidden':'visible';
+  $('#nextStep').style.display=accStep===5?'none':'';
+  $('#verdictBtn').style.display=accStep===5?'':'none';
+  const h=document.querySelectorAll('.acc-step')[accStep].querySelector('h3').textContent.replace(/^\d\/6\s*/,'');
+  speak(h);
+}
+$('#nextStep').onclick=()=>{if(!stepAnswered(accStep)){toast('👆 Choisis une réponse avant de continuer');sad();return}beep(600,.06);showStep(accStep+1)};
+$('#prevStep').onclick=()=>{beep(400,.06);showStep(accStep-1)};
+const _render=renderAccuse;
+renderAccuse=function(){_render();document.querySelectorAll('#stepdots i').forEach((d,i)=>{if(i!==accStep)d.className=stepAnswered(i)?'done':''})};
+// avance automatique après un choix unique
+document.querySelector('.wizard').addEventListener('click',e=>{
+  const o=e.target.closest('.opt');if(!o)return;
+  if(STEP_KEYS[accStep]==='alibi'||accStep===5)return;
+  setTimeout(()=>{if(stepAnswered(accStep)&&accStep<5)showStep(accStep+1)},450);
+});
+$('#accuseBtn').onclick=()=>{
+  if(S.clues.length<10&&!S.warned){S.warned=true;toast('⚠️ Seulement '+S.clues.length+' indices… Clique encore sur « Accuser » pour confirmer');sad();return}
+  renderAccuse();show('accuse');showStep(0);beep(250,.2,'triangle',.06);
+};
+$('#backBtn').onclick=()=>{stopSpeak();show('board')};
+$('#verdictBtn').onclick=()=>{
+  const miss=STEP_KEYS.findIndex((k,i)=>!stepAnswered(i));
+  if(miss>=0){toast('⚠️ Il manque la réponse à la question '+(miss+1));sad();showStep(miss);return}
+  reveal();
+};
+
+/* =========================================================
+   RÉVÉLATION (en diapositives)
+   ========================================================= */
+const VERDICTS=[
+  {id:'polling',st:'guilty',lab:'COUPABLE',txt:"Il a envoyé 3 200 requêtes par seconde, parce que REST ne permet pas au serveur de prévenir le client.",les:['lim','❌ Limite : pas de temps réel']},
+  {id:'overfetch',st:'acc',lab:'COMPLICE',txt:"Elle répondait avec 2 Mo de données alors que l'app ne lisait que le statut.",les:['lim','❌ Limite : over-fetching']},
+  {id:'underfetch',st:'inno',lab:'INNOCENT',txt:"Coupable de lenteur avec ses 7 requêtes, mais il ne les faisait qu'une fois par client.",les:['lim','❌ Limite : under-fetching']},
+  {id:'cache',st:'inno',lab:'ALIBI',txt:"Il a absorbé 82 % des requêtes sur les restaurants. Impuissant face aux statuts qui changent sans arrêt.",les:['av','✅ Avantage : mise en cache']},
+  {id:'stateless',st:'inno',lab:'ALIBI',txt:"Grâce à lui, on a ajouté 3 serveurs en urgence et retardé la mort de 30 minutes.",les:['av','✅ Avantage : stateless et scalable']},
+  {id:'websocket',st:'hero',lab:'SAUVEUR',txt:"Il n'était même pas là. Avec lui, le serveur aurait poussé le statut en temps réel.",les:['alt','🔄 L\'alternative pour le temps réel']},
+];
+let rvStage=0,scoreInfo={pts:0,rank:''};
+function showRv(n){
+  rvStage=Math.max(0,Math.min(4,n));
+  document.querySelectorAll('.rv-stage').forEach((el,i)=>el.classList.toggle('cur',i===rvStage));
+  $('#rvLabel').textContent=(rvStage+1)+' / 5';
+  $('#rvPrev').style.visibility=rvStage===0?'hidden':'visible';
+  $('#rvNext').style.visibility=rvStage===4?'hidden':'visible';
+  if(rvStage===0)speak('Le coupable est Polling, le Harceleur ! Sa complice : Over-Fetching, la Gourmande. Le Cache et Stateless sont innocents, ils ont un alibi. Et WebSocket aurait pu sauver le Serveur.');
+  if(rvStage===1){speak('Votre score : '+scoreInfo.pts+' sur 12. '+scoreInfo.rank);if(scoreInfo.pts>=8){confetti(220);jingle()}else sad()}
+  if(rvStage===2)speak($('#finalText').innerHTML);
+  if(rvStage===3){
+    const av=[...document.querySelectorAll('#rv3 .dcol:first-child .ditem b')].map(b=>b.textContent).join(', ');
+    const li=[...document.querySelectorAll('#rv3 .dcol:last-child .ditem b')].map(b=>b.textContent).join(', ');
+    speak('Les avantages de REST : '+av+'. Les limites de REST : '+li+'.');
+  }
+  if(rvStage===4)speak([...document.querySelectorAll('#rv4 .alt')].map(a=>a.querySelector('b').textContent+' : '+a.querySelector('p').textContent).join(' ')+' '+$('#rv4 .key').textContent);
+}
+$('#rvNext').onclick=()=>{beep(600,.06);showRv(rvStage+1)};
+$('#rvPrev').onclick=()=>{beep(400,.06);showRv(rvStage-1)};
+function reveal(){
+  show('reveal');scoreIt();
+  $('#rvNav').style.visibility='hidden';
+  document.querySelectorAll('.rv-stage').forEach((el,i)=>el.classList.toggle('cur',i===0));rvStage=0;
+  $('#verdicts').innerHTML='';
+  $('#drum').innerHTML='Le coupable est<span class="dots"><span>.</span><span>.</span><span>.</span></span>';
+  speak('Le coupable est…');
+  const roll=setInterval(()=>beep(120+Math.random()*60,.05,'triangle',.08),70);
+  setTimeout(()=>{
+    clearInterval(roll);beep(80,.5,'sawtooth',.1);
+    $('#drum').innerHTML='Le coupable est… <span style="color:var(--cyan);text-shadow:3px 3px 0 var(--red)">POLLING !</span>';
+    $('#verdicts').innerHTML=VERDICTS.map(v=>{const s=SUSPECTS.find(x=>x.id===v.id);
+      return `<div class="vcard" style="--c:${s.c}"><div class="stamp ${v.st}">${v.lab}</div>
+        <div class="top"><div class="av">${AV[s.id]}</div><div><h4>${s.name}</h4><div style="font-family:var(--type);font-size:13px;color:var(--muted)">« ${s.nick} »</div></div></div>
+        <p>${v.txt}</p><div class="lesson l-${v.les[0]}">${v.les[1]}</div></div>`}).join('');
+    document.querySelectorAll('.vcard').forEach((c,i)=>setTimeout(()=>{c.classList.add('in');beep(300+i*80,.08,'square',.05)},300+i*450));
+    speak('Polling, le Harceleur ! Sa complice : Over-Fetching, la Gourmande. Le Cache et Stateless ont un alibi. Et WebSocket aurait pu sauver le Serveur.','narr',{queue:true});
+    setTimeout(()=>{$('#rvNav').style.visibility='visible';$('#rvLabel').textContent='1 / 5';$('#rvPrev').style.visibility='hidden';$('#rvNext').style.visibility='visible';confetti(80)},300+VERDICTS.length*450+400);
+  },2600);
+}
+function scoreIt(){
+  const a=S.acc;let pts=0;const lines=[];
+  const ok=(c,p,label)=>{if(c)pts+=p;lines.push(`${c?'✅':'❌'} ${label} <b style="float:right">${c?'+'+p:'0'} pt${p>1?'s':''}</b>`)};
+  ok(a.guilty==='polling',3,'Coupable : Polling');
+  ok(a.acc==='overfetch',2,'Complice : Over-Fetching');
+  ok(a.weapon==='w1',1,'Arme : GET /api/orders/{id} toutes les secondes');
+  ok(a.motive==='m2',1,'Mobile : pas de temps réel + réponses trop lourdes');
+  const goodAl=['a0','a1'].filter(x=>a.alibi.has(x)).length, badAl=['a2','a3'].filter(x=>a.alibi.has(x)).length;
+  const alPts=Math.max(0,goodAl-badAl);pts+=alPts;
+  lines.push(`${alPts===2?'✅':alPts?'🟡':'❌'} Avantages : cache et stateless <b style="float:right">+${alPts} pt${alPts>1?'s':''}</b>`);
+  ok(a.save==='s0',2,'Sauveur : WebSocket');
+  const bonus=S.clues.length>=18?1:0;pts+=bonus;
+  lines.push(`${bonus?'⭐':'▫️'} Bonus enquêteur (18 indices et plus) <b style="float:right">+${bonus} pt</b>`);
+  const rank=pts>=11?'🏆 Sherlock des API':pts>=8?'🕵️ Inspecteur confirmé':pts>=5?'🔍 Détective stagiaire':'🙈 Le Serveur réclame justice…';
+  scoreInfo={pts,rank};
+  $('#scorebox').innerHTML=`<div class="sc">${pts} / 12</div><div class="rank">${rank}</div>
+    <div style="color:var(--muted);font-size:clamp(12px,1.8vh,15px);margin-top:4px">${S.clues.length} indices trouvés · ${$('#timer').textContent} d'enquête</div>
+    <ul>${lines.map(l=>`<li>${l}</li>`).join('')}</ul>`;
+}
+$('#replayBtn').onclick=()=>{stopSpeak();resetState();$('#notes').innerHTML='';$('#nbEmpty').style.display='block';$('#startBtn').style.visibility='hidden';show('intro');typeIntro()};
+
+/* =========================================================
+   CONFETTIS
+   ========================================================= */
+const cv=$('#confetti'),cx=cv.getContext('2d');let parts=[];
+function resize(){cv.width=innerWidth;cv.height=innerHeight}resize();addEventListener('resize',resize);
+function confetti(n){
+  const cols=['#ff3b5c','#ffd400','#22d3ee','#2ee6a0','#a78bfa','#ff8a3d','#ff6ec7'];
+  for(let i=0;i<n;i++)parts.push({x:innerWidth/2+(Math.random()-.5)*300,y:innerHeight/3,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,
+    s:Math.random()*8+4,c:cols[i%cols.length],r:Math.random()*6,vr:(Math.random()-.5)*.3,life:160});
+  if(!confetti.running)loop();
+}
+function loop(){
+  confetti.running=true;cx.clearRect(0,0,cv.width,cv.height);
+  parts.forEach(p=>{p.vy+=.35;p.x+=p.vx;p.y+=p.vy;p.r+=p.vr;p.life--;
+    cx.save();cx.translate(p.x,p.y);cx.rotate(p.r);cx.fillStyle=p.c;cx.fillRect(-p.s/2,-p.s/4,p.s,p.s/2);cx.restore()});
+  parts=parts.filter(p=>p.life>0&&p.y<innerHeight+40);
+  if(parts.length)requestAnimationFrame(loop);else{confetti.running=false;cx.clearRect(0,0,cv.width,cv.height)}
+}
+
+typeIntro();
+</script>
+</body>
+</html>
